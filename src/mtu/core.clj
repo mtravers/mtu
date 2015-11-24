@@ -1,5 +1,6 @@
 (ns mtu.core
   "Various generally useful utilities to keep mt sane"
+  (:require [clojure.string :as str])
   (:require clojure.pprint)
   (:require clojure.set)
   (:require clojure.java.shell)
@@ -30,7 +31,13 @@
 (defn warn [s & args]
   (println (str "WARNING: " (apply format s args))))
 
-(defmacro ignore-report "Execute `body`, if an exception occurs, print a message and continute"
+(defmacro ignore-errors "Execute `body`, if an exception occurs return nil. Note: not a good idea for production code"
+  [& body]
+  (let [var (gensym "e")]
+    `(try (do ~@body)
+          (catch Throwable ~var nil))))
+
+(defmacro ignore-report "Execute `body`, if an exception occurs, print a message and continue"
   [& body]
   (let [var (gensym "e")]
     `(try (do ~@body)
@@ -174,6 +181,18 @@ str-or-pattern."
     (when-not (.exists f)
       (.mkdirs f))))
 
+(defn read-tsv-file
+  "Given a tsv file with a header line, returns seq where each elt is a map of field names to strings"
+  [f]
+  (let [raw (file-lines f)
+        fields (str/split (first raw) #"\t")]
+    (map (fn [l]
+           (clean-map
+            (zipmap fields (str/split l #"\t"))
+            #(= % "")))
+         (rest raw))))
+
+
 ;;; ⩇⩆⩇ Strings ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
 (defn string> [s1 s2]
@@ -194,7 +213,7 @@ str-or-pattern."
 
 (defn underscore->camelcase
   [s]
-  (apply str (map clojure.string/capitalize (clojure.string/split s #"_"))))
+  (apply str (map str/capitalize (str/split s #"_"))))
 
 ;;; TODO camelcase->underscore
 
@@ -217,7 +236,7 @@ str-or-pattern."
 ;;; There are certainly other ways to do tokenization.
 ;;; \p{L} means match any char of any language.
 (defn tokens [s]
-  (map clojure.string/lower-case 
+  (map str/lower-case 
        (re-seq  #"[\p{L}'\d]+" s)))
 
 (defn bigrams [tokens]
@@ -229,7 +248,7 @@ str-or-pattern."
 (defn remove-stops
   "Remove stop words from a string. Stops is a set of stop words"
   [string stops]
-  (clojure.string/join
+  (str/join
    " "
    (remove #(get stops %) (tokens string))))
 
