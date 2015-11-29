@@ -1,7 +1,6 @@
 (ns mtu.core
   "Various generally useful utilities to keep mt sane"
   (:require [clojure.string :as str])
-  (:require clojure.pprint)
   (:require clojure.set)
   (:require clojure.java.shell)
   )
@@ -20,28 +19,28 @@
 
 ;;; Lazy variables
 
-(defmacro deflz [var & body]
+(defmacro deflz "Like `def` but will only compute value on demand."
+  [var & body]
   `(def ~var (delay ~@body)))
 
-;;; ⩇⩆⩇ Exception handling ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
+;;; ⩇⩆⩇ Exceptions ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
-(defn error [s & args]
+(defn error "Throw a generic Exception with formatted string"
+  [s & args]
   (throw (Exception. (apply format s args))))
 
 (defn warn [s & args]
   (println (str "WARNING: " (apply format s args))))
 
-(defmacro ignore-errors "Execute `body`, if an exception occurs return nil. Note: not a good idea for production code"
+(defmacro ignore-errors "Execute `body`; if an exception occurs return `nil`. Note: strongly deprecated for production code."
   [& body]
-  (let [var (gensym "e")]
-    `(try (do ~@body)
-          (catch Throwable ~var nil))))
+  `(try (do ~@body)
+        (catch Throwable e# nil)))
 
 (defmacro ignore-report "Execute `body`, if an exception occurs, print a message and continue"
   [& body]
-  (let [var (gensym "e")]
-    `(try (do ~@body)
-          (catch Throwable ~var (warn (str "Ignored error: " (.getMessage ~var))))))) ;+++ include body in msg
+  `(try (do ~@body)
+        (catch Throwable e# (warn (str "Ignored error: " (.getMessage e#))))))
 
 (defn error-handling-fn
   "Returns a fn that acts like f, but return value is (true result) or (false errmsg) in the case of an error"
@@ -61,48 +60,6 @@
           ret (apply f args)]
       (list (/ (double (- (. System (nanoTime)) start)) 1000000.0)
             ret))))
-
-;;; ⩇⩆⩇ Debugging/interaction ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
-
-(defmacro dbg
-  [x]
-  `(let [x# ~x] (println "dbg:" '~x "=" x#) x#))
-
-(defn tapr "Print `thing` and  return it as value"
-  [thing]
-  (prn thing)
-  thing)
-
-;;; TODO – implement equiv of CL mt/plet
-
-(defn capture "Capture 'val' in 'atom' and return it."
-  [atom val]
-  (swap! atom (fn [x] val))
-  val)
-
-(defn pp [thing]
-  (clojure.pprint/pprint thing))
-
-(defn get-methods "Return a list of all method names on `class`"
-  [class]
-  (distinct (map #(.getName %) (seq (.getMethods class)))))
-
-;; The built in clojure.repl/apropos manages to not return the namespace; this version fixes that.
-(defn apropos
-  "Given a regular expression or stringable thing, return a seq of
-all definitions in all currently-loaded namespaces that match the
-str-or-pattern."
-  [str-or-pattern]
-  (let [matches? (if (instance? java.util.regex.Pattern str-or-pattern)
-                   #(re-find str-or-pattern (str %))
-                   #(.contains (str %) (str str-or-pattern)))]
-    (mapcat (fn [ns]
-              (map #(symbol (str ns) (str %)) (filter matches? (keys (ns-publics ns)))))
-            (all-ns))))
-
-(defn class-source "Return the jar file that defines a given class"
-  [klass]
-  (.getLocation (.getCodeSource (.getProtectionDomain klass))))
 
 (defn java-resource->string [resource]
   (-> resource
@@ -181,6 +138,8 @@ str-or-pattern."
     (when-not (.exists f)
       (.mkdirs f))))
 
+(declare clean-map)
+
 (defn read-tsv-file
   "Given a tsv file with a header line, returns seq where each elt is a map of field names to strings"
   [f]
@@ -219,7 +178,6 @@ str-or-pattern."
 
 ;;; Source: http://rosettacode.org/wiki/Levenshtein_distance#Clojure
 ;;; can be extremely slow eg (levenshtein "restaurant" "restoration")
-;;; Memoization 
 (defn levenshtein [str1 str2]
   (let [len1 (count str1)
         len2 (count str2)]
@@ -254,8 +212,18 @@ str-or-pattern."
 
 ;;; ⩇⩆⩇ Sequences and Maps ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
-(defn delete [elt seq]
+;;; Trying to introduce the convention of an = suffix meaning take a value for equality test instead of a predicate.
+(defn remove= [elt seq]
   (remove #(= % elt) seq))
+
+(defn positions "Returns a list of indexes of coll for which pred is  true (if predicate)"
+  [pred coll]
+  (keep-indexed (fn [idx x]
+                  (when (pred x) idx))
+                coll))
+
+(defn positions= [elt coll]
+  (positions #(= % elt) coll))
 
 ;;; From https://github.com/clojure/core.incubator/blob/master/src/main/clojure/clojure/core/incubator.clj
 (defn seqable?
@@ -274,7 +242,7 @@ str-or-pattern."
   (or (false? v) (nil? v) (and (seqable? v) (empty? v))))
 
 (defn clean-map 
-  "Remove values from 'map' based on 'pred' (default is nullish?)"
+  "Remove values from 'map' based on 'pred' (default is `nullish?`)"
   ([map] (clean-map map nullish?))
   ([map pred] (select-keys map (for [[k v] map :when (not (pred v))] k))))
 
@@ -323,15 +291,6 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
   [list1 list2]
   (seq (clojure.set/difference (set list1) (set list2))))
 
-;;; How can this not be there?
-(defn position [elt seq]
-  (loop [pos 0
-         tail seq]
-    (cond (empty? tail) nil
-          (= elt (first tail)) pos 
-          true
-          (recur (+ 1 pos) (rest tail)))))
-
 (defn transitive-closure [f]
   "f is a fn of one arg that returns a list. Returns a new fn that computes the transitive closure."
   (fn [root]
@@ -345,13 +304,7 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
           (recur (clojure.set/union done (set (list expanded)))
                  (concat new (rest fringe))))))))
 
-(defn take-groups "Group elts from `coll` into a seqeunce of `n`-lists"
-  [n coll]
-  (if (empty? coll) '()
-      (lazy-seq
-       (cons (take n coll)
-             (take-groups n (drop n coll))))))
-
+;;; Previously called take-groups
 (defn partition-lossless
   "Like partition, but include the final partial subset!"
   [n l]
@@ -429,17 +382,12 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
         (str n)
         ))
 
-
 ;;; ⩇⩆⩇ Media ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
-
 
 ;;; TODO OSX only, how do you conditionalize?
 (defn speak [text]
- (let [mngr (javax.script.ScriptEngineManager.)
-      engine (.getEngineByName mngr "AppleScript")] 
+ (let [engine (.getScriptEngine (apple.applescript.AppleScriptEngineFactory.))]
    (.eval engine (format "say \"%s\"" text))))
-
-
 
 ;;; ⩇⩆⩇ Shell ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
