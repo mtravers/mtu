@@ -1,9 +1,9 @@
 (ns mtu.core
   "Various generally useful utilities to keep mt sane"
-  (:require [clojure.string :as str])
-  (:require clojure.set)
-  (:require clojure.java.shell)
-  )
+  (:require
+   [clojure.string :as str]
+   clojure.set
+   ))
 
 ;;; (many based on CL; see https://github.com/mtravers/mtlisp/blob/master/mt-utils.lisp )
 
@@ -23,133 +23,7 @@
   [var & body]
   `(def ~var (delay ~@body)))
 
-;;; ⩇⩆⩇ Exceptions ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
-
-(defn error "Throw a generic Exception with formatted string"
-  [s & args]
-  (throw (Exception. (apply format s args))))
-
-(defn warn [s & args]
-  (println (str "WARNING: " (apply format s args))))
-
-(defmacro ignore-errors "Execute `body`; if an exception occurs return `nil`. Note: strongly deprecated for production code."
-  [& body]
-  `(try (do ~@body)
-        (catch Throwable e# nil)))
-
-(defmacro ignore-report "Execute `body`, if an exception occurs, print a message and continue"
-  [& body]
-  `(try (do ~@body)
-        (catch Throwable e# (warn (str "Ignored error: " (.getMessage e#))))))
-
-(defn error-handling-fn
-  "Returns a fn that acts like f, but return value is (true result) or (false errmsg) in the case of an error"
-  [f]
-  (fn [& args]
-    (try
-      (let [res (apply f args)]
-        (list true res))
-      (catch Exception e
-        (list false (str "Caught exception: " e)) ))))
-
-(defn timing-fn
-  "Returns a fn that acts like f, but return value is (time result), time in msec]"
-  [f]
-  (fn [& args]
-    (let [start (. System (nanoTime))
-          ret (apply f args)]
-      (list (/ (double (- (. System (nanoTime)) start)) 1000000.0)
-            ret))))
-
-(defn java-resource->string [resource]
-  (-> resource
-      clojure.java.io/resource
-      clojure.java.io/input-stream
-      slurp))
-
-;;; ⩇⩆⩇ Files ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
-
-(defn content-files
-  [dir & regex]
-  (filter #(and (not (.isDirectory %))
-                (or (empty? regex) (re-find (first regex) (str %))))
-          (file-seq (clojure.java.io/file dir))))
-
-(defn file-exists?
-  "True if file `path` exists"
-  [path]
-  (.exists (clojure.java.io/as-file path)))
-
-(defn file-delete-recursively
-  "Delete a directory and its contents"
-  [fname]
-  (letfn [(del1 [f]
-            (when (.isDirectory f)
-              (doseq [f2 (.listFiles f)]
-                (del1 f2)))
-            (clojure.java.io/delete-file f))]
-    (del1 (clojure.java.io/file fname))))
-
-(defn file-delete-safe
-  "Delete a file or directory safely (that is, no error if doesn't exist)"
-  [fname]
-  (when (file-exists? fname)
-    (file-delete-recursively fname)))
-
-;;; http://stackoverflow.com/questions/840190/changing-the-current-working-directory-in-java
-(defn cd "As in Unix shell cd"
-  [dirname]
-  (let [dir (.getAbsoluteFile (java.io.File. dirname))]
-    (System/setProperty "user.dir" (.getAbsolutePath dir))
-    dir))
-
-(defn temp-file []
-  (java.io.File/createTempFile "temp" ""))
-
-(defn temp-file-path []
-  (.getPath (temp-file)))
-
-(defn temp-dir-path []
-  (str (java.nio.file.Files/createTempDirectory "temp" (into-array java.nio.file.attribute.FileAttribute [] ))))
-
-(defn file-lines [file]
-  (let [r (clojure.java.io/reader file)]
-    (line-seq r)))
-
-(defn file-lines-out [file seq]
-  (let [w (clojure.java.io/writer file)]
-    (binding [*out* w]
-      (doseq [l seq]
-        (println l)))))
-
-(defn process-file-lines [f in out]
-  (file-lines-out out (map f (file-lines in))))
-
-(defn directory-files [d filterfn]
-  (filter #(and (not (.isDirectory %))
-                (.exists %)
-                (filterfn (.getName %)))
-          (file-seq (clojure.java.io/file d))))
-
-(defn ensure-directory
-  "Create directory if it doesn't exist (recursively)"
-  [d]
-  (let [f (java.io.File. d)]
-    (when-not (.exists f)
-      (.mkdirs f))))
-
 (declare clean-map)
-
-(defn read-tsv-file
-  "Given a tsv file with a header line, returns seq where each elt is a map of field names to strings"
-  [f]
-  (let [raw (file-lines f)
-        fields (str/split (first raw) #"\t")]
-    (map (fn [l]
-           (clean-map
-            (zipmap fields (str/split l #"\t"))
-            #(= % "")))
-         (rest raw))))
 
 
 ;;; ⩇⩆⩇ Strings ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
@@ -200,8 +74,7 @@
 (defn bigrams [tokens]
   (map list tokens (rest tokens)))
 
-(defn file-tokens [f]
-  (mapcat tokens (file-lines f)))
+
 
 (defn remove-stops
   "Remove stop words from a string. Stops is a set of stop words"
@@ -304,15 +177,27 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
           (recur (clojure.set/union done (set (list expanded)))
                  (concat new (rest fringe))))))))
 
+;;; partition-lossless
 ;;; Previously called take-groups
-(defn partition-lossless
-  "Like partition, but include the final partial subset!"
-  [n l]
-  (partition n n '() l))
+;;; and turns out to be subsumed by clojure.core/partition-all
 
 (defn map-chunked "Call f with chunk-sized subsequences of l, concat the results"
   [f chunk-size l]
-  (mapcat f (partition-lossless chunk-size l)))
+  (mapcat f (partition-all chunk-size l)))
+
+;;; TODO for*
+(defmacro doseq* "Like doseq, but goes down lists in parallel rather than nested. Assumes lists are same size."
+  [bindings & body]
+  (let [bindings (partition 2 bindings)
+        vars (map first bindings)
+        forms (map second bindings)
+        lvars (map gensym vars)]
+    `(loop ~(into [] (mapcat (fn [v f] [v f]) lvars forms))
+       (let ~(into [] (mapcat (fn [v lv] [v `(first ~lv)]) vars lvars))
+         ~@body
+         (when-not (empty? (rest ~(first lvars)))
+           (recur ~@(map (fn [lv] `(rest ~lv)) lvars)))
+         ))))
 
 (defn sort-map-by-values [m]
   (into (sorted-map-by (fn [k1 k2] (compare [(get m k2) k2] [(get m k1) k1]))) m))
@@ -354,45 +239,3 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
           (iterate #(+ % 2) 3)
           ))))
 
-;;; ⩇⩆⩇ Date/time ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
-
-;;; There's a clj-time package that is no doubt betterk i
-
-(defn-memoized date-formatter [f]
-  (java.text.SimpleDateFormat. f))
-
-; "yy-MM-dd kk:mm"
-; "YYYY-MM-dd_HH_MM_SS")
-(defn date-format [date format]
-  (.format (date-formatter format) date))
-
-(defn date+ [date days hours minutes]
-  (java.util.Date. (+ (.getTime date) (* 60 1000 (+ minutes (* 60 (+ hours (* 24 days))))))))
-
-;;; ⩇⩆⩇ Output ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
-
-(defn humanize-number [n]
-  (cond (>= n 1e9)
-        (format "%1.3gG" (/ n 1e9))
-        (>= n 1e6)
-        (format "%1.3gM" (/ n 1e6))
-        (>= n 1e3)
-        (format "%1.3gk" (/ n 1e3))
-        true
-        (str n)
-        ))
-
-;;; ⩇⩆⩇ Media ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
-
-;;; TODO OSX only, how do you conditionalize?
-(defn speak [text]
- (let [engine (.getScriptEngine (apple.applescript.AppleScriptEngineFactory.))]
-   (.eval engine (format "say \"%s\"" text))))
-
-;;; ⩇⩆⩇ Shell ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
-
-(defn sh-errchecked [& args]
-  (let [res (apply clojure.java.shell/sh args)]
-    (when-not (= (:exit res) 0)
-      (throw (Exception. "Bad result from shell" res))
-      )))

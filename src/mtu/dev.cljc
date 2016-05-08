@@ -28,6 +28,7 @@
   (distinct (map #(.getName %) (seq (.getMethods class)))))
 
 ;; The built in clojure.repl/apropos manages to not return the namespace; this version fixes that.
+;; Seems to have been fixed in mainstream clojure? So this may be obsolete.
 (defn apropos
   "Given a regular expression or stringable thing, return a seq of
 all definitions in all currently-loaded namespaces that match the
