@@ -185,7 +185,6 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
   [f chunk-size l]
   (mapcat f (partition-all chunk-size l)))
 
-;;; TODO for*
 (defmacro doseq* "Like doseq, but goes down lists in parallel rather than nested. Assumes lists are same size."
   [bindings & body]
   (let [bindings (partition 2 bindings)
@@ -198,6 +197,15 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
          (when-not (empty? (rest ~(first lvars)))
            (recur ~@(map (fn [lv] `(rest ~lv)) lvars)))
          ))))
+
+(defmacro for*
+  "Like for but goes down lists in parallel rather than nested. Assumes lists are same size."
+  [bindings & body]
+  (let [bindings (partition 2 bindings)
+        vars (map first bindings)
+        forms (map second bindings)
+        lvars (map gensym vars)]
+    `(map (fn ~(into [] vars) ~@body) ~@forms)))
 
 (defn sort-map-by-values [m]
   (into (sorted-map-by (fn [k1 k2] (compare [(get m k2) k2] [(get m k1) k1]))) m))
