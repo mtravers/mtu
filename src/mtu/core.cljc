@@ -2,7 +2,7 @@
   "Various generally useful utilities to keep mt sane"
   (:require
    [clojure.string :as str]
-   clojure.set
+   [clojure.set :as set]
    ))
 
 ;;; (many based on CL; see https://github.com/mtravers/mtlisp/blob/master/mt-utils.lisp )
@@ -99,7 +99,8 @@
   (positions #(= % elt) coll))
 
 ;;; From https://github.com/clojure/core.incubator/blob/master/src/main/clojure/clojure/core/incubator.clj
-(defn seqable?
+#?(:clj
+   (defn seqable?
   "Returns true if (seq x) will succeed, false otherwise."
   [x]
   (or (seq? x)
@@ -108,7 +109,7 @@
       (instance? Iterable x)
       (.isArray (.getClass ^Object x))
       (string? x)
-      (instance? java.util.Map x)))
+      (instance? java.util.Map x))))
 
 (defn nullish? [v]
   "True if value is something we probably don't care about (nil, false, empty seqs, empty strings)"
@@ -122,24 +123,43 @@
 (defn cl-find [val sequence & {xkey :key, xtest :test, :or {xkey identity, xtest =}}]
   (apply (some-fn #(and (xtest (xkey %) val) %)) sequence))
 
+(defn distinctly
+  "Like distinct, but equality determined by keyfn"
+  [coll keyfn]
+  (let [step (fn step [xs seen]
+               (lazy-seq
+                ((fn [[f :as xs] seen]
+                   (when-let [s (seq xs)]
+                     (if (contains? seen (keyfn f))
+                       (recur (rest s) seen)
+                       (cons f (step (rest s) (conj seen (keyfn f)))))))
+                 xs seen)))]
+    (step coll #{})))
+
 (defn sequencify [thing]
   (if (sequential? thing)
     thing
     (list thing)))
 
+(defn map-values [f hashmap]
+  (zipmap (keys hashmap) (map f (vals hashmap))))
+
+(defn map-keys [f hashmap]
+  (zipmap (map f (keys hashmap)) (vals hashmap)))
+
 (defn map-invert-multiple
   "Returns the inverse of map with the vals mapped to the keys. Like clojure.set/map-invert, but does the sensible thing with multiple values.
 Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c}, 3 #{:c :d}, 1 #{:a}}`"
   [m]
-  (let [unset
-        (reduce (fn [m [k v]]
+  (map-values
+   (partial into #{})
+   (reduce (fn [m [k v]]
             (reduce (fn [mm elt]
                       (assoc mm elt (cons k (get mm elt))))
                     m
                     (sequencify v)))
           {}
-          m)]
-    (zipmap (keys unset) (map #(into #{} (get unset %)) (keys unset)))))
+          m)))
 
 ;;; TODO versions of these that can take comparator as arg
 (defn max-by "Find the maximim element of `seq` based on keyfn"
@@ -213,6 +233,21 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
 (defn freq-map [seq]
   (sort-map-by-values (reduce (fn [m v] (assoc m v (if-let [o (get m v)] (+ 1 o) 1))) {} seq)))
 
+(defn clump-by
+  "Sequence is ordered (by vfn), comp is a comparator between two elts. Returns groups in which comp is true for consecutive elements"
+  [sequence vfn comp]
+  (if (empty? sequence)
+    sequence
+    (reverse
+     (map reverse
+          (reduce (fn [res b]
+                    (let [a (first (first res))]
+                      (if (comp (vfn a) (vfn b))
+                        (cons (cons b (first res)) (rest res))
+                        (cons (list b) res))))
+                  (list (list (first sequence)))
+                  (rest sequence))))))
+
 ;;; Skips words that are not in base-freq tble
 (defn overexpressed [freq base-freq]
   (sort-map-by-values
@@ -247,3 +282,12 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
           (iterate #(+ % 2) 3)
           ))))
 
+(defn map-diff [a b]
+  (let [both (set/intersection (set (keys a)) (set (keys b)))
+        a-only (set/difference both (set (keys a)))
+        b-only (set/difference both (set (keys b)))]
+    (prn [:a-only a-only])
+    (prn [:a-only b-only])
+    (for [key both]
+      (when-not (= (key a) (key b))
+        (prn [:slot-diff key (key a) (key b)])))))
