@@ -128,12 +128,19 @@
     (when-not (.exists f)
       (.mkdirs f))))
 
-
-
+;;; TODO generalize to more than one form?
+(defn read-from-file
+  "Read a form from a file"
+  [file]
+  (let [rdr (-> file
+                clojure.java.io/file
+                clojure.java.io/reader
+                java.io.PushbackReader.)]
+    (read rdr)))
 
 ;;; ⩇⩆⩇ Date/time ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
-;;; There's a clj-time package that is no doubt betterk i
+;;; There's a clj-time package that is no doubt better
 
 (core/defn-memoized date-formatter [f]
   (java.text.SimpleDateFormat. f))
@@ -158,13 +165,6 @@
         true
         (str n)
         ))
-
-;;; ⩇⩆⩇ Media ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
-
-;;; TODO OSX only, how do you conditionalize?
-(defn speak [text]
- (let [engine (.getScriptEngine (apple.applescript.AppleScriptEngineFactory.))]
-   (.eval engine (format "say \"%s\"" text))))
 
 ;;; ⩇⩆⩇ Shell ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
