@@ -63,7 +63,7 @@
 ;;; \p{L} means match any char of any language.
 (defn tokens [s]
   (map str/lower-case 
-       (re-seq  #"[\p{L}'\d]+" s)))
+       (re-seq #"[\p{L}'\d]+" s)))
 
 (defn bigrams [tokens]
   (map list tokens (rest tokens)))
@@ -230,8 +230,8 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
   (if (empty? s) #{#{}}
       (let [elt (set (list (first s)))
             tail (powerset (rest s))]
-        (concat (map #(set/union elt %) tail)
-                tail))))
+        (set/union (into #{} (map #(set/union elt %) tail))
+                   tail))))
 
 ;;; partition-lossless
 ;;; Previously called take-groups
