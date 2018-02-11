@@ -294,9 +294,17 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
 (defn standard-deviation "Return standard deviation of the elements of `seq`"
   [seq]
   (let [mean0 (mean seq)]
-    (mean (map #(Math/pow (- % mean0) 2) seq))))
+    (Math/sqrt
+     (/ (reduce + (map #(Math/pow (- % mean0) 2) seq))
+        (- (count seq) 1)))))
 
-(defn geometric-mean "Return the geometric mean of the elements of `setq`"
+;;; A highly useful and underused statistic
+(defn coefficent-of-variation "Return coefficent of variation of the elements of `seq`"
+  [seq]
+  (/ (standard-deviation seq)
+     (mean seq)))
+
+(defn geometric-mean "Return the geometric mean of the elements of `seq`"
   [seq]
   (Math/pow (reduce * (map double seq))
             (/ 1 (count seq))))
