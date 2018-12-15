@@ -189,3 +189,7 @@
 
 (defn file-tokens [f]
   (mapcat core/tokens (file-lines f)))
+
+(defn open-url [url]
+  (.browse (java.awt.Desktop/getDesktop)
+           (java.net.URI/create url)))

@@ -26,6 +26,7 @@
 ;;; ⩇⩆⩇ Strings ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
 ;;; +++ must be a more standard form
+;;; TODO these aren't cljs compatible  assume
 (defn string-search [string sub]
   (let [pos (.indexOf string sub)]
     (if (> pos 0)
@@ -90,19 +91,6 @@
 (defn positions= [elt coll]
   (positions #(= % elt) coll))
 
-;;; From https://github.com/clojure/core.incubator/blob/master/src/main/clojure/clojure/core/incubator.clj
-#?(:clj
-   (defn seqable?
-  "Returns true if (seq x) will succeed, false otherwise."
-  [x]
-  (or (seq? x)
-      (instance? clojure.lang.Seqable x)
-      (nil? x)
-      (instance? Iterable x)
-      (.isArray (.getClass ^Object x))
-      (string? x)
-      (instance? java.util.Map x))))
-
 (defn nullish? [v]
   "True if value is something we probably don't care about (nil, false, empty seqs, empty strings)"
   (or (false? v) (nil? v) (and (seqable? v) (empty? v))))
@@ -141,6 +129,17 @@
      (empty? seq) []
      (f seq) (cons seq (filter-rest f (rest seq)))
      true (filter-rest f (rest seq)))))
+
+(defn merge-recursive [m1 m2]
+  (cond (and (map? m1) (map? m2))
+        (let [keys (seq (set/union (set (keys m1)) (set (keys m2))))]
+          (zipmap keys
+                  (map #(merge-recursive (get m1 %) (get m2 %)) keys)))
+        (nil? m1) m2
+        (nil? m2) m1
+        (= m1 m2) m1
+        ;; TODO might want a version that combined these into a vector or something similar
+        true (throw (Exception. (str "Can't merge " m1 " and " m2)))))
 
 (defn map-values [f hashmap]
   (zipmap (keys hashmap) (map f (vals hashmap))))
@@ -319,3 +318,14 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
           ))))
 
 
+;;; I need this as an omnipresent dev tool (TODO think there is something similar built into Clojure 1.10, tap)
+(def captures (atom {}))
+
+(defn capture [tag & stuff]
+  (swap! captures assoc tag stuff))
+
+;;;
+(defn mapped [f] (fn [& args] (apply map f args)))
+
+(def +* (mapped +))
+;; etc
