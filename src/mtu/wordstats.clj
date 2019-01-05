@@ -1,10 +1,12 @@
 (ns mtu.wordstats
-  (:use mtu.core)
-  (:use mtu.cljcore)
+  (:require [mtu.core :as core]
+            [mtu.cljcore :as cljcore]
+            [clojure.string :as str])
+;  (:use mtu.cljcore)
   )
 
 (defn overexpressed [freq base-freq]
-  (sort-map-by-values
+  (core/sort-map-by-values
    (reduce (fn [m [k v]]
              (if-let [base (get base-freq k)]
                (assoc m k (/ v base))
@@ -16,10 +18,10 @@
 ;;; Returns a freq map
 (defn read-norvig-freqs [file]
   (reduce (fn [map line]
-            (let [[word count] (clojure.string/split line #"\t")
+            (let [[word count] (str/split line #"\t")
                  count (Long. count)]
               (assoc map word count)))
-          {} (file-lines file)))
+          {} (cljcore/file-lines file)))
 
-(defn-memoized freq-table [name]
+(core/defn-memoized freq-table [name]
   (read-norvig-freqs (str local-loc name)))

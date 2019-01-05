@@ -91,8 +91,9 @@
 (defn positions= [elt coll]
   (positions #(= % elt) coll))
 
-(defn nullish? [v]
+(defn nullish? 
   "True if value is something we probably don't care about (nil, false, empty seqs, empty strings)"
+  [v]
   (or (false? v) (nil? v) (and (seqable? v) (empty? v))))
 
 (defn clean-map 
@@ -167,9 +168,9 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
         b-only (set/difference both (set (keys b)))]
     (prn [:a-only a-only])
     (prn [:a-only b-only])
-    (for [key both]
-      (when-not (= (key a) (key b))
-        (prn [:slot-diff key (key a) (key b)])))))
+    (for [k both]
+      (when-not (= (k a) (k b))
+        (prn [:slot-diff k (k a) (k b)])))))
 
 (defn >*
   "Generalization of > to work on anything with a compare fn"
@@ -269,15 +270,15 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
   (sort-map-by-values (frequencies seq)))
 
 (defn clump-by
-  "Sequence is ordered (by vfn), comp is a comparator between two elts. Returns groups in which comp is true for consecutive elements"
-  [sequence vfn comp]
+  "Sequence is ordered (by vfn), comparator is a fn of two elts. Returns groups in which comp is true for consecutive elements"
+  [sequence vfn comparator]
   (if (empty? sequence)
     sequence
     (reverse
      (map reverse
           (reduce (fn [res b]
                     (let [a (first (first res))]
-                      (if (comp (vfn a) (vfn b))
+                      (if (comparator (vfn a) (vfn b))
                         (cons (cons b (first res)) (rest res))
                         (cons (list b) res))))
                   (list (list (first sequence)))

@@ -3,6 +3,8 @@
   (:require
    clojure.java.shell
    [clojure.string :as str]
+   [clojure.java.io :as io]
+   [clojure.java.shell :as shell]
    [mtu.core :as core]
   ))
 
@@ -46,8 +48,8 @@
 
 (defn java-resource->string [resource]
   (-> resource
-      clojure.java.io/resource
-      clojure.java.io/input-stream
+      io/resource
+      io/input-stream
       slurp))
 
 ;;; ⩇⩆⩇ Files ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
@@ -56,12 +58,12 @@
   [dir & regex]
   (filter #(and (not (.isDirectory %))
                 (or (empty? regex) (re-find (first regex) (str %))))
-          (file-seq (clojure.java.io/file dir))))
+          (file-seq (io/file dir))))
 
 (defn file-exists?
   "True if file `path` exists"
   [path]
-  (.exists (clojure.java.io/as-file path)))
+  (.exists (io/as-file path)))
 
 (defn file-delete-recursively
   "Delete a directory and its contents"
@@ -70,8 +72,8 @@
             (when (.isDirectory f)
               (doseq [f2 (.listFiles f)]
                 (del1 f2)))
-            (clojure.java.io/delete-file f))]
-    (del1 (clojure.java.io/file fname))))
+            (io/delete-file f))]
+    (del1 (io/file fname))))
 
 (defn file-delete-safe
   "Delete a file or directory safely (that is, no error if doesn't exist)"
@@ -98,16 +100,16 @@
 (defn local-file [url]
   (let [url (java.net.URL. url)
         tmp (temp-file)]
-    (clojure.java.io/copy (.openStream url) tmp)
+    (io/copy (.openStream url) tmp)
     (.getPath tmp)))
 
 
 (defn file-lines [file]
-  (let [r (clojure.java.io/reader file)]
+  (let [r (io/reader file)]
     (line-seq r)))
 
 (defn file-lines-out [file seq]
-  (let [w (clojure.java.io/writer file)]
+  (let [w (io/writer file)]
     (binding [*out* w]
       (doseq [l seq]
         (println l)))))
@@ -119,7 +121,7 @@
   (filter #(and (not (.isDirectory %))
                 (.exists %)
                 (filterfn (.getName %)))
-          (file-seq (clojure.java.io/file d))))
+          (file-seq (io/file d))))
 
 (defn ensure-directory
   "Create directory if it doesn't exist (recursively)"
@@ -133,8 +135,8 @@
   "Read a form from a file"
   [file]
   (let [rdr (-> file
-                clojure.java.io/file
-                clojure.java.io/reader
+                io/file
+                io/reader
                 java.io.PushbackReader.)]
     (read rdr)))
 
@@ -169,7 +171,7 @@
 ;;; ⩇⩆⩇ Shell ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
 (defn sh-errchecked [& args]
-  (let [res (apply clojure.java.shell/sh args)]
+  (let [res (apply shell/sh args)]
     (when-not (= (:exit res) 0)
       (throw (Exception. "Bad result from shell" res))
       )))
