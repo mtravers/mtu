@@ -2,8 +2,48 @@
   (:require [mtu.core :as core]
             [mtu.cljcore :as cljcore]
             [clojure.string :as str])
-;  (:use mtu.cljcore)
   )
+
+;;; Assorted NL tools.
+
+;;; Source: http://rosettacode.org/wiki/Levenshtein_distance#Clojure
+;;; can be extremely slow eg (levenshtein "restaurant" "restoration")
+(defn levenshtein [str1 str2]
+  (let [len1 (count str1)
+        len2 (count str2)]
+    (cond (zero? len1) len2
+          (zero? len2) len1
+          :else
+          (let [cost (if (= (first str1) (first str2)) 0 1)]
+            (min (inc (levenshtein (rest str1) str2))
+                 (inc (levenshtein str1 (rest str2)))
+                 (+ cost
+                    (levenshtein (rest str1) (rest str2))))))))
+
+;;; lowercase and tokenize a string. Punctuation is removed (except for ').
+;;; There are certainly other ways to do tokenization.
+;;; \p{L} means match any char of any language.
+(defn tokens [s]
+  (map str/lower-case 
+       (re-seq #"[\p{L}'\d]+" s)))
+
+(defn file-tokens [f]
+  (mapcat tokens (cljcore/file-lines f)))
+
+(defn bigrams [tokens]
+  (map list tokens (rest tokens)))
+
+(defn remove-stops
+  "Remove stop words from a string. Stops is a set of stop words"
+  [string stops]
+  (str/join
+   " "
+   (remove #(get stops %) (tokens string))))
+
+(defn text->freq-table [text]
+  (-> text
+      tokens
+      frequencies))
 
 (defn overexpressed [freq base-freq]
   (core/sort-map-by-values
@@ -25,3 +65,5 @@
 
 (core/defn-memoized freq-table [name]
   (read-norvig-freqs (str local-loc name)))
+
+

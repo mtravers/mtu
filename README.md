@@ -4,7 +4,7 @@ Mike Travers՚ Clojure utility library.
 
 ## Usage
 
-
+(require [mtu "0.1.1”])
 
 ## License
 

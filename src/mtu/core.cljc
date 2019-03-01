@@ -45,36 +45,6 @@
 
 ;;; TODO camelcase->underscore
 
-;;; Source: http://rosettacode.org/wiki/Levenshtein_distance#Clojure
-;;; can be extremely slow eg (levenshtein "restaurant" "restoration")
-(defn levenshtein [str1 str2]
-  (let [len1 (count str1)
-        len2 (count str2)]
-    (cond (zero? len1) len2
-          (zero? len2) len1
-          :else
-          (let [cost (if (= (first str1) (first str2)) 0 1)]
-            (min (inc (levenshtein (rest str1) str2))
-                 (inc (levenshtein str1 (rest str2)))
-                 (+ cost
-                    (levenshtein (rest str1) (rest str2))))))))
-
-;;; lowercase and tokenize a string. Punctuation is removed (except for ').
-;;; There are certainly other ways to do tokenization.
-;;; \p{L} means match any char of any language.
-(defn tokens [s]
-  (map str/lower-case 
-       (re-seq #"[\p{L}'\d]+" s)))
-
-(defn bigrams [tokens]
-  (map list tokens (rest tokens)))
-
-(defn remove-stops
-  "Remove stop words from a string. Stops is a set of stop words"
-  [string stops]
-  (str/join
-   " "
-   (remove #(get stops %) (tokens string))))
 
 ;;; ⩇⩆⩇ Sequences and Maps ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
@@ -147,6 +117,12 @@
 
 (defn map-keys [f hashmap]
   (zipmap (map f (keys hashmap)) (vals hashmap)))
+
+(defn dissoc-if [f hashmap]
+  (apply dissoc hashmap (map first (filter f hashmap))))
+
+(defn remove-nil-values [hashmap]
+  (dissoc-if (fn [[_ v]] (not v)) hashmap))
 
 (defn map-invert-multiple
   "Returns the inverse of map with the vals mapped to the keys. Like set/map-invert, but does the sensible thing with multiple values.
@@ -322,11 +298,19 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
 ;;; I need this as an omnipresent dev tool (TODO think there is something similar built into Clojure 1.10, tap)
 (def captures (atom {}))
 
-(defn capture [tag & stuff]
-  (swap! captures assoc tag stuff))
+(defn capture [tag thing]
+  (swap! captures assoc tag thing)
+  thing)
 
 ;;;
 (defn mapped [f] (fn [& args] (apply map f args)))
 
 (def +* (mapped +))
 ;; etc
+
+(defn spittoon
+  "Like spit, but will print lazy lists usefully and completely"
+  [f thing]
+  (binding [*print-length* nil]
+    (spit f (pr-str thing))))
+        

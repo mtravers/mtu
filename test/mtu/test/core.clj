@@ -1,6 +1,7 @@
 (ns mtu.test.core
   (:use clojure.test)
-  (:use mtu.core))
+  (:use mtu.core)
+  (:require [clojure.string :as str]))
 
 (deftest cl-find-test
   (is (= 3 (cl-find 3 '(1 2 3 4))))
@@ -48,6 +49,9 @@
   (is (<* 2 3))
   (is (<* "foo" "quux"))
   (is (not (<* 1 1))))
+
+(defn tokens [s]
+  (str/split s #"\w"))
 
 (deftest maxby-minby-test
   (= "tediously"

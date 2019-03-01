@@ -54,6 +54,8 @@
 
 ;;; ⩇⩆⩇ Files ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
+;;; Note: probably better to avoid these and use raynes/fs https://github.com/Raynes/fs
+
 (defn content-files
   [dir & regex]
   (filter #(and (not (.isDirectory %))
@@ -97,12 +99,25 @@
 (defn temp-dir-path []
   (str (java.nio.file.Files/createTempDirectory "temp" (into-array java.nio.file.attribute.FileAttribute [] ))))
 
+(defn directory-files [d filterfn]
+  (filter #(and (not (.isDirectory %))
+                (.exists %)
+                (filterfn (.getName %)))
+          (file-seq (io/file d))))
+
+(defn ensure-directory
+  "Create directory if it doesn't exist (recursively)"
+  [d]
+  (let [f (java.io.File. d)]
+    (when-not (.exists f)
+      (.mkdirs f))))
+
+
 (defn local-file [url]
   (let [url (java.net.URL. url)
         tmp (temp-file)]
     (io/copy (.openStream url) tmp)
     (.getPath tmp)))
-
 
 (defn file-lines [file]
   (let [r (io/reader file)]
@@ -116,19 +131,6 @@
 
 (defn process-file-lines [f in out]
   (file-lines-out out (map f (file-lines in))))
-
-(defn directory-files [d filterfn]
-  (filter #(and (not (.isDirectory %))
-                (.exists %)
-                (filterfn (.getName %)))
-          (file-seq (io/file d))))
-
-(defn ensure-directory
-  "Create directory if it doesn't exist (recursively)"
-  [d]
-  (let [f (java.io.File. d)]
-    (when-not (.exists f)
-      (.mkdirs f))))
 
 ;;; TODO generalize to more than one form?
 (defn read-from-file
@@ -189,9 +191,52 @@
             #(= % "")))
          (rest raw))))
 
-(defn file-tokens [f]
-  (mapcat core/tokens (file-lines f)))
+(defn open-url
+  [url]
+  (when (java.awt.Desktop/isDesktopSupported)
+    (.browse (java.awt.Desktop/getDesktop)
+             (java.net.URI/create url))))
 
-(defn open-url [url]
-  (.browse (java.awt.Desktop/getDesktop)
-           (java.net.URI/create url)))
+;;; Conceivably do dates as well
+(defn coerce-value
+  "Attempt to turn a string into a number (int or float). Return number if succesful, otherwise original string"
+  [str]
+  (if-let [inum (re-matches #"-?\d+" str)]
+    (try
+      (Integer. inum)
+      (catch Exception _
+        str))
+    (if-let [fnum (re-matches #"-?\d+\.?\d*" str)]
+      (try
+        (Float/parseFloat fnum)
+        (catch Exception _
+          str))
+      str)))
+
+(defn keyword-safe
+  "Turn string into keyword that, replacing chars that will make serialization/deserialization problematic"
+  [str]
+  (keyword (str/replace str #"[ ,\(\):]" "_")))
+
+(defn random-uuid
+  []
+  (str (java.util.UUID/randomUUID)))
+
+;;; Turn a string into a regex, taking every character literally (not as regex operators)
+(defn re-pattern-literal
+  {:tag java.util.regex.Pattern
+   :added "1.0"
+   :static true}
+  [s]
+  (re-pattern (java.util.regex.Pattern/quote s)))
+
+;;; Probably want keyword maps, or at least an option for that.
+(defn expand-template-string
+  "Template is a string containing {foo} elements, which get replaced by corresponding values from bindings"
+  [template bindings]
+  (let [matches (->> (re-seq #"\{(.*?)\}" template) ;extract the template fields from the entity
+                     (map (fn [[match key]]
+                            [match (or (bindings key) "")])))]
+    (reduce (fn [s [match key]]
+              (str/replace s (re-pattern-literal match) (str key)))
+            template matches)))
