@@ -240,3 +240,7 @@
     (reduce (fn [s [match key]]
               (str/replace s (re-pattern-literal match) (str key)))
             template matches)))
+
+(defn parse-xml-string [s]
+  (with-in-str s
+    (clojure.xml/parse (java.io.ByteArrayInputStream. (.getBytes s)))))

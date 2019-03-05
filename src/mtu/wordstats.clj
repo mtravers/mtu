@@ -53,7 +53,7 @@
                m)) {} freq)))
 
 ;;; Data is here: http://norvig.com/ngrams/
-(def local-loc "data/ngrams/")
+(def local-loc "/misc/repos/mtu/data/ngrams/")
 
 ;;; Returns a freq map
 (defn read-norvig-freqs [file]
