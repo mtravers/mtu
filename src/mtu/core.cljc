@@ -204,12 +204,6 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
   (reduce (fn [a b] (if (<* (keyfn a) (keyfn b)) a b))
           seq))
 
-(defn outliers-by
-  [scorefn seq factor]
-  (let [scores (map scorefn seq)
-        threshold (+ (mean scores) (* factor (standard-deviation scores)))]
-    (filter identity (map (fn [elt score] (when (>= score threshold) elt)) seq scores))))
-
 (defn lunion "Compute the union of `lists`"
   [& lists]
   (apply set/union lists))      ;set fn works here, but not for other cases
@@ -308,7 +302,7 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
   (let [mean0 (mean seq)]
     (Math/sqrt
      (/ (reduce + (map #(Math/pow (- % mean0) 2) seq))
-        (- (count seq) 1)))))o
+        (- (count seq) 1)))))
 
 ;;; A highly useful and underused statistic
 (defn coefficent-of-variation "Return coefficent of variation of the elements of `seq`"
@@ -325,11 +319,16 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
     (map #(nth sorted (Math/round (* % (/ count n))))
          (range 1 n))))
     
-
 (defn geometric-mean "Return the geometric mean of the elements of `seq`"
   [seq]
   (Math/pow (reduce * (map double seq))
             (/ 1 (count seq))))
+
+(defn outliers-by
+  [scorefn seq factor]
+  (let [scores (map scorefn seq)
+        threshold (+ (mean scores) (* factor (standard-deviation scores)))]
+    (filter identity (map (fn [elt score] (when (>= score threshold) elt)) seq scores))))
 
 (def primes
   (cons 2

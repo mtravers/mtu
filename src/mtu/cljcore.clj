@@ -241,6 +241,8 @@
               (str/replace s (re-pattern-literal match) (str key)))
             template matches)))
 
+;;; dependent on [org.clojure/data.xml "0.0.8"], just as soon not
+#_
 (defn parse-xml-string [s]
   (with-in-str s
     (clojure.xml/parse (java.io.ByteArrayInputStream. (.getBytes s)))))
