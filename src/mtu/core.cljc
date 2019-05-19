@@ -43,10 +43,25 @@
   [s]
   (apply str (map str/capitalize (str/split s #"_"))))
 
+(defn re-find-all
+  "Find all matches in a string."
+  [re s]
+  (let [m (re-matcher re s)
+        collector (atom [])]
+    (while (.find m)
+      (swap! collector conj (re-groups m)))
+    @collector))
+
+
 ;;; TODO camelcase->underscore
 
 
 ;;; ⩇⩆⩇ Sequences and Maps ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
+
+(defn doall-safe [thing]
+  (if (sequential? thing)
+    (doall thing)
+    thing))
 
 ;;; Trying to introduce the convention of an = suffix meaning take a value for equality test instead of a predicate.
 (defn remove= [elt seq]
@@ -60,6 +75,10 @@
 
 (defn positions= [elt coll]
   (positions #(= % elt) coll))
+
+;;; isn't this in clj.core somewhere
+(defn partition-with [pred coll]
+  [(filter pred coll) (remove pred coll)])
 
 (defn nullish? 
   "True if value is something we probably don't care about (nil, false, empty seqs, empty strings)"
@@ -138,6 +157,17 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
           {}
           m)))
 
+;;; TODO use transients as in group-by
+(defn group-by-multiple
+  "Like group-by, but f produces a seq of values rather than a single one"
+  [f coll]  
+  (reduce
+   (fn [ret x]
+     (reduce (fn [ret y]
+               (assoc ret y (conj (get ret y []) x)))
+             ret (f x)))
+   {} coll))
+
 (defn map-diff [a b]
   (let [both (set/intersection (set (keys a)) (set (keys b)))
         a-only (set/difference both (set (keys a)))
@@ -173,6 +203,12 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
   [keyfn seq]
   (reduce (fn [a b] (if (<* (keyfn a) (keyfn b)) a b))
           seq))
+
+(defn outliers-by
+  [scorefn seq factor]
+  (let [scores (map scorefn seq)
+        threshold (+ (mean scores) (* factor (standard-deviation scores)))]
+    (filter identity (map (fn [elt score] (when (>= score threshold) elt)) seq scores))))
 
 (defn lunion "Compute the union of `lists`"
   [& lists]
@@ -272,13 +308,23 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
   (let [mean0 (mean seq)]
     (Math/sqrt
      (/ (reduce + (map #(Math/pow (- % mean0) 2) seq))
-        (- (count seq) 1)))))
+        (- (count seq) 1)))))o
 
 ;;; A highly useful and underused statistic
 (defn coefficent-of-variation "Return coefficent of variation of the elements of `seq`"
   [seq]
   (/ (standard-deviation seq)
      (mean seq)))
+
+(defn safe-round [n]
+  (if (int? n) n (Math/round n)))
+
+(defn iles [seq n]
+  (let [sorted (into [] (sort seq))
+        count (double (count seq))]
+    (map #(nth sorted (Math/round (* % (/ count n))))
+         (range 1 n))))
+    
 
 (defn geometric-mean "Return the geometric mean of the elements of `seq`"
   [seq]
