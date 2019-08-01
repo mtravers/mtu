@@ -71,5 +71,29 @@
   ;; TODO seqs of different length
   )
 
-        
+(deftest expand-template-string-test
+  (let [template "The {foo} must have {bar}!"
+        ent1 {"foo" "subgenius" "bar" "slack"}
+        ent2 {"foo" "dog"}]
+    (is (= "The subgenius must have slack!"
+           (expand-template-string template ent1)))
+    (is (= "The dog must have !"
+           (expand-template-string template ent2)))))
 
+(deftest uncollide-test
+  (is (= '(1 2 3) (uncollide '(1 2 3))))
+  (is (= '(1 2 4 3) (uncollide '(1 2 2 3) :new-key-fn #(* % 2))))
+  (is (= '("a1" "a2-1") (uncollide '("a1" "a2") :existing '("a2") :new-key-fn #(str % "-1"))))
+  (is (= '("a-1-1" "b") (uncollide '("a" "b") :existing '("a" "a-1") :new-key-fn #(str % "-1"))))
+  )
+
+(deftest ignore-errors-normal-test
+  (is (= 7 (ignore-errors (+ 3 4)))))
+
+(deftest ignore-errors-rror-test
+  (is (= nil (ignore-errors (/ 0 0) (+ 3 4)))))
+
+(deftest error-handling-fn-test
+  (let [ed (error-handling-fn /)]
+    (is (= '(true 2/3) (ed 2 3)))
+    (is (= '(false "Caught exception: java.lang.ArithmeticException: Divide by zero") (ed 2 0)))))

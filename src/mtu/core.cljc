@@ -3,6 +3,7 @@
   (:require
    [clojure.string :as str]
    [clojure.set :as set]
+   [clojure.walk :as walk]
    ))
 
 ;;; (many based on CL; see https://github.com/mtravers/mtlisp/blob/master/mt-utils.lisp )
@@ -17,27 +18,42 @@
     `(def ~name ~args (memoize (fn ~(first body) ~@(rest body))))
     `(def ~name (memoize (fn ~args ~@body)))))
 
-;;; Lazy variables
-
-(defmacro deflz "Like `def` but will only compute value on demand."
+(defmacro def-lazy "Like `def` but will only compute value on demand."
   [var & body]
   `(def ~var (delay ~@body)))
 
+;;; ⩇⩆⩇ Error handling ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
+
+(defmacro ignore-errors "Execute `body`; if an exception occurs return `nil`. Note: strongly deprecated for production code."
+  [& body]
+  `(try (do ~@body)
+        (catch #?(:clj Throwable :cljs :default) e# nil)))
+
+(defmacro ignore-report "Execute `body`, if an exception occurs, print a message and continue"
+  [& body]
+  `(try (do ~@body)
+        (catch #?(:clj Throwable :cljs :default) e# (warn (str "Ignored error: " (.getMessage e#))))))
+
+(defn error-handling-fn
+  "Returns a fn that acts like f, but return value is (true result) or (false errmsg) in the case of an error"
+  [f]
+  (fn [& args]
+    (try
+      (let [res (apply f args)]
+        (list true res))
+      (catch  #?(:clj Throwable :cljs :default) e
+        (list false (str "Caught exception: " e))))))
+
 ;;; ⩇⩆⩇ Strings ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
-;;; +++ must be a more standard form
-;;; TODO these aren't cljs compatible  assume
-(defn string-search [string sub]
-  (let [pos (.indexOf string sub)]
-    (if (> pos 0)
-      pos
-      false)))
 
-(defn string-search-all [string sub & [start]]
-  (let [pos (.indexOf string sub (or start 0))]
-    (if (> pos 0)
-      (cons pos (string-search-all string sub (+ 1 pos)))
-      ())))
+
+(defn parse-numeric
+  [s]
+  #?(:cljs (js/parseFloat s)
+     :clj (Float. s)))
+
+
 
 (defn underscore->camelcase
   [s]
@@ -52,13 +68,46 @@
       (swap! collector conj (re-groups m)))
     @collector))
 
+(defn re-pattern-literal
+  [s]
+  #?(:clj  
+     (re-pattern (java.util.regex.Pattern/quote s))
+     :cljs
+     (re-pattern (str/replace s #"([)\/\,\.\,\*\+\?\|\(\)\[\]\{\}\\])" "\\$1"))))
+
+(defn expand-template-string
+  "Template is a string containing {foo} elements, which get replaced by corresponding values from bindings"
+  [template bindings]
+  (let [matches (->> (re-seq #"\{(.*?)\}" template) ;extract the template fields from the entity
+                     (map (fn [[match key]]
+                            [match (or (bindings key) "")])))]
+    (reduce (fn [s [match key]]
+              (str/replace s (re-pattern-literal match) (str key)))
+            template matches)))
 
 ;;; TODO camelcase->underscore
 
+;;; ⩇⩆⩇ Keywords and namespaces ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
+
+(defn keyword-safe
+  "Make a string into a readable keyword by replacing certain punctuation"
+  [str]
+  (keyword (str/replace str #"[ ,\(\):]" "_")))
+
+(defn dens
+  "Remove the namespaces that backquote insists on adding"
+  [struct]
+  (walk/postwalk 
+   #(if (symbol? %)
+    (symbol nil (name %))
+    %)
+   struct))
 
 ;;; ⩇⩆⩇ Sequences and Maps ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
-(defn doall-safe [thing]
+(defn doall-safe
+  "Realize lazy sequences, if arg is such, otherwise a no-op."
+  [thing]
   (if (sequential? thing)
     (doall thing)
     thing))
@@ -68,7 +117,7 @@
   (remove #(= % elt) seq))
 
 (defn positions "Returns a list of indexes of coll for which pred is  true (if predicate)"
-  [pred coll]
+   [pred coll]
   (keep-indexed (fn [idx x]
                   (when (pred x) idx))
                 coll))
@@ -90,8 +139,26 @@
   ([map] (clean-map map nullish?))
   ([map pred] (select-keys map (for [[k v] map :when (not (pred v))] k))))
 
-(defn cl-find [val sequence & {xkey :key, xtest :test, :or {xkey identity, xtest =}}]
+(defn cl-find
+  [val sequence & {xkey :key, xtest :test, :or {xkey identity, xtest =}}]
   (apply (some-fn #(and (xtest (xkey %) val) %)) sequence))
+
+(defn iterate-until [f start pred]
+  (if (pred start)
+    start
+    (iterate-until f (f start) pred)))
+
+(defn position
+  [elt coll]
+  (first
+   (keep-indexed (fn [idx x]
+                   (when (= x elt) idx))
+                 coll)))
+
+(defn safe-nth
+  [col n]
+  (and (<= 0 n (count col))
+       (nth col n)))
 
 (defn distinctly
   "Like distinct, but equality determined by keyfn"
@@ -106,10 +173,31 @@
                  xs seen)))]
     (step coll #{})))
 
+(defn uncollide
+  "new-key-fn is from elts to elts"
+  [seq & {:keys [key-fn new-key-fn existing] :or {key-fn identity
+                                                   existing? #{}
+                                                   }}]
+  (letfn [(step [xs seen]
+            (cond (empty? xs) xs
+                  (contains? seen (key-fn (first xs)))
+                  (let [new-elt (iterate-until new-key-fn (first xs) #(not (contains? seen (key-fn %))))]
+                    (cons new-elt
+                          (step (rest xs) (conj seen (key-fn new-elt)))))
+                  true
+                  (cons (first xs)
+                        (step (rest xs) (conj seen (key-fn (first xs)))))))]
+    (step seq (set existing))))
+
 (defn sequencify [thing]
   (if (sequential? thing)
     thing
     (list thing)))
+
+(defn unlist [thing]
+  (if (and (sequential? thing) (= 1 (count thing)))
+    (first thing)
+    thing))
 
 (defn filter-rest
   "A lazy sequence generated by applying f to seq and its tails"
@@ -120,22 +208,33 @@
      (f seq) (cons seq (filter-rest f (rest seq)))
      true (filter-rest f (rest seq)))))
 
+;;; TODO? could work like regular merge and prefer m2 when unmergeable
 (defn merge-recursive [m1 m2]
   (cond (and (map? m1) (map? m2))
-        (let [keys (seq (set/union (set (keys m1)) (set (keys m2))))]
-          (zipmap keys
-                  (map #(merge-recursive (get m1 %) (get m2 %)) keys)))
+        (merge-with merge-recursive m1 m2)
         (nil? m1) m2
         (nil? m2) m1
         (= m1 m2) m1
-        ;; TODO might want a version that combined these into a vector or something similar
+        ;; TODO? might want a version that combined these into a vector or something similar
         true (throw (Exception. (str "Can't merge " m1 " and " m2)))))
 
 (defn map-values [f hashmap]
   (zipmap (keys hashmap) (map f (vals hashmap))))
 
+;;; Alternate implementation
+#_
+(defn map-values [f hashmap]
+  (reduce-kv (fn [m k v]
+               (assoc m k (f v)))
+             {} hashmap))
+
+
 (defn map-keys [f hashmap]
   (zipmap (map f (keys hashmap)) (vals hashmap)))
+
+(defn index-by 
+  [f coll]  
+  (zipmap (map f coll) coll))
 
 (defn dissoc-if [f hashmap]
   (apply dissoc hashmap (map first (filter f hashmap))))
@@ -304,6 +403,18 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
      (/ (reduce + (map #(Math/pow (- % mean0) 2) seq))
         (- (count seq) 1)))))
 
+(defn score-by "Return a list of [elt score] pairs, in descending score order."
+  [keyfn seq]
+  (reverse
+   (sort-by second
+            (map (fn [elt] [elt (keyfn elt)]) seq))))
+
+(defn outliers-by "Return elements of `seq` on whom `scorefn` is more than `factor` standard-deviations away from the mean."
+  [scorefn seq factor]
+  (let [scores (map scorefn seq)
+        threshold (+ (mean scores) (* factor (standard-deviation scores)))]
+    (filter identity (map (fn [elt score] (when (>= score threshold) elt)) seq scores))))
+
 ;;; A highly useful and underused statistic
 (defn coefficent-of-variation "Return coefficent of variation of the elements of `seq`"
   [seq]
@@ -349,7 +460,6 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
 
 ;;;
 (defn mapped [f] (fn [& args] (apply map f args)))
-
 (def +* (mapped +))
 ;; etc
 
@@ -359,3 +469,17 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
   (binding [*print-length* nil]
     (spit f (pr-str thing))))
         
+;;; For Amuedo – already exists as range, but that cheats and uses Java
+(defn ramp [beg end inc]
+  (take-while (partial > end)
+              (iterate (partial + inc) beg)))
+
+;;; Slightly less cryptically
+(defn ramp [beg end inc]
+  (take-while (fn [x] (> end x))
+              (iterate (fn [x] (+ inc x)) beg)))
+
+
+
+
+

@@ -17,33 +17,14 @@
 (defn warn [s & args]
   (println (str "WARNING: " (apply format s args))))
 
-(defmacro ignore-errors "Execute `body`; if an exception occurs return `nil`. Note: strongly deprecated for production code."
-  [& body]
-  `(try (do ~@body)
-        (catch Throwable e# nil)))
-
-(defmacro ignore-report "Execute `body`, if an exception occurs, print a message and continue"
-  [& body]
-  `(try (do ~@body)
-        (catch Throwable e# (warn (str "Ignored error: " (.getMessage e#))))))
-
-(defn error-handling-fn
-  "Returns a fn that acts like f, but return value is (true result) or (false errmsg) in the case of an error"
-  [f]
-  (fn [& args]
-    (try
-      (let [res (apply f args)]
-        (list true res))
-      (catch Exception e
-        (list false (str "Caught exception: " e)) ))))
-
+;;; TODO port to .cljc using window.performance.now() (returns usec)
 (defn timing-fn
   "Returns a fn that acts like f, but return value is (time result), time in msec]"
   [f]
   (fn [& args]
-    (let [start (. System (nanoTime))
+    (let [start (System/nanoTime)
           ret (apply f args)]
-      (list (/ (double (- (. System (nanoTime)) start)) 1000000.0)
+      (list (/ (double (- (System/nanoTime) start)) 1000000.0)
             ret))))
 
 (defn java-resource->string [resource]
@@ -197,6 +178,22 @@
     (.browse (java.awt.Desktop/getDesktop)
              (java.net.URI/create url))))
 
+;;; +++ must be a more standard form
+;;; TODO if actually useful, port to cljc
+(defn string-search
+  [string sub]
+  (let [pos (.indexOf string sub)]
+    (if (> pos 0)
+      pos
+      false)))
+
+(defn string-search-all
+  [string sub & [start]]
+  (let [pos (.indexOf string sub (or start 0))]
+    (if (> pos 0)
+      (cons pos (string-search-all string sub (+ 1 pos)))
+      ())))
+
 ;;; Conceivably do dates as well
 (defn coerce-value
   "Attempt to turn a string into a number (int or float). Return number if succesful, otherwise original string"
@@ -246,3 +243,19 @@
 (defn parse-xml-string [s]
   (with-in-str s
     (clojure.xml/parse (java.io.ByteArrayInputStream. (.getBytes s)))))
+
+(defn now []
+  (java.util.Date.))
+
+(defn schpit 
+  "Like core/spit, but will do something sensible for lazy seqs "
+  [f content & options]
+  (with-open [w (apply io/writer f options)]
+    (binding [*print-length* nil]
+      (prn content w))))
+
+(defn read-chars
+  [reader n]
+  (let [a (char-array n)]
+    (.read reader a)
+    (String. a)))
