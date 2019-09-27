@@ -1,4 +1,4 @@
-(ns mtu.test.core
+(ns mtu.core-test
   (:use clojure.test)
   (:use mtu.core)
   (:require [clojure.string :as str]))

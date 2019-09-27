@@ -62,11 +62,14 @@
 (defn re-find-all
   "Find all matches in a string."
   [re s]
-  (let [m (re-matcher re s)
-        collector (atom [])]
-    (while (.find m)
-      (swap! collector conj (re-groups m)))
-    @collector))
+  #?(:clj
+     (let [m (re-matcher re s)
+           collector (atom [])]            ;TODO better to use transients
+       (while (.find m)
+         (swap! collector conj (re-groups m)))
+       @collector)
+     :cljs
+     (throw (ex-info "TODO" {}))))
 
 (defn re-pattern-literal
   [s]
@@ -134,9 +137,16 @@
   [v]
   (or (false? v) (nil? v) (and (seqable? v) (empty? v))))
 
-(defn clean-map 
-  "Remove values from 'map' based on 'pred' (default is `nullish?`)"
-  ([map] (clean-map map nullish?))
+;;; Stolen from https://gitlab.com/kenrestivo/utilza
+(defn map-filter
+  "Applies f to coll. Returns a lazy sequence of the items in coll for which
+   all the items are truthy. f must be free of side-effects."
+  [f coll]
+  (filter (comp not nullish?) (apply map f coll)))
+
+(defn deselect
+  "Remove values from 'map' based on 'pred' (default is `nullish?`). Formerly clean-map "
+  ([map] (deselect map nullish?))
   ([map pred] (select-keys map (for [[k v] map :when (not (pred v))] k))))
 
 (defn cl-find
@@ -216,22 +226,15 @@
         (nil? m2) m1
         (= m1 m2) m1
         ;; TODO? might want a version that combined these into a vector or something similar
-        true (throw (Exception. (str "Can't merge " m1 " and " m2)))))
-
-(defn map-values [f hashmap]
-  (zipmap (keys hashmap) (map f (vals hashmap))))
-
-;;; Alternate implementation
-#_
-(defn map-values [f hashmap]
-  (reduce-kv (fn [m k v]
-               (assoc m k (f v)))
-             {} hashmap))
-
+        true (throw (ex-info (str "Can't merge " m1 " and " m2) {}))))
 
 (defn map-keys [f hashmap]
   (zipmap (map f (keys hashmap)) (vals hashmap)))
 
+(defn map-values [f hashmap]
+  (zipmap (keys hashmap) (map f (vals hashmap))))
+
+;;; See utilza.core/mapify
 (defn index-by 
   [f coll]  
   (zipmap (map f coll) coll))
@@ -389,6 +392,35 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
                   (list (list (first sequence)))
                   (rest sequence))))))
 
+;;; ⩇⩆⩇ Math and randomness ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
+
+(defn rand-range [a b]
+  (+ a (* (rand) (- b a))))
+
+(defn rand-around [p range]
+  (rand-range (- p range) (+ p range)))
+
+(defn interpolate [a b s]
+  (+ (* a (- 1 s)) (* b s)))
+
+(defn interpolated [a b n]
+  (map #(interpolate a b (/ % n)) (range n)))
+
+(defn distance [x0 y0 x1 y1]
+  (Math/sqrt (+ (Math/pow (- x0 x1) 2) (Math/pow (- y0 y1) 2))))
+
+(defn rescale [val from-lower from-upper to-lower to-upper]
+  (+ to-lower
+     (* (- val from-lower)
+        (/ (- to-upper to-lower)
+           (- from-upper from-lower)))))
+
+(defn r2d [r]
+  (* r (/ 180 Math/PI)))
+
+(defn d2r [d]
+  (* d (/ Math/PI 180)))
+
 ;;; ⩇⩆⩇ Naive handy statistics ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
 (defn mean "Return the arithmetic mean of the elements of `seq`"
@@ -435,11 +467,7 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
   (Math/pow (reduce * (map double seq))
             (/ 1 (count seq))))
 
-(defn outliers-by
-  [scorefn seq factor]
-  (let [scores (map scorefn seq)
-        threshold (+ (mean scores) (* factor (standard-deviation scores)))]
-    (filter identity (map (fn [elt score] (when (>= score threshold) elt)) seq scores))))
+
 
 (def primes
   (cons 2
@@ -458,26 +486,9 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
   (swap! captures assoc tag thing)
   thing)
 
-;;;
-(defn mapped [f] (fn [& args] (apply map f args)))
-(def +* (mapped +))
-;; etc
 
-(defn spittoon
-  "Like spit, but will print lazy lists usefully and completely"
-  [f thing]
-  (binding [*print-length* nil]
-    (spit f (pr-str thing))))
         
-;;; For Amuedo – already exists as range, but that cheats and uses Java
-(defn ramp [beg end inc]
-  (take-while (partial > end)
-              (iterate (partial + inc) beg)))
 
-;;; Slightly less cryptically
-(defn ramp [beg end inc]
-  (take-while (fn [x] (> end x))
-              (iterate (fn [x] (+ inc x)) beg)))
 
 
 

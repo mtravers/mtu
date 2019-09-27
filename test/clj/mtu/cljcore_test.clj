@@ -1,4 +1,4 @@
-(ns mtu.test.cljcore
+(ns mtu.cljcore-test
   (:use clojure.test)
   (:use mtu.cljcore))
 

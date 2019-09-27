@@ -29,17 +29,18 @@
 
 ;; The built in clojure.repl/apropos manages to not return the namespace; this version fixes that.
 ;; Seems to have been fixed in mainstream clojure? So this may be obsolete.
-(defn apropos
-  "Given a regular expression or stringable thing, return a seq of
-all definitions in all currently-loaded namespaces that match the
-str-or-pattern."
-  [str-or-pattern]
-  (let [matches? (if (instance? java.util.regex.Pattern str-or-pattern)
-                   #(re-find str-or-pattern (str %))
-                   #(.contains (str %) (str str-or-pattern)))]
-    (mapcat (fn [ns]
-              (map #(symbol (str ns) (str %)) (filter matches? (keys (ns-publics ns)))))
-            (all-ns))))
+#?(:clj
+   (defn apropos
+     "Given a regular expression or stringable thing, return a seq of
+  all definitions in all currently-loaded namespaces that match the
+  str-or-pattern."
+     [str-or-pattern]
+     (let [matches? (if (instance? java.util.regex.Pattern str-or-pattern)
+                      #(re-find str-or-pattern (str %))
+                      #(.contains (str %) (str str-or-pattern)))]
+       (mapcat (fn [ns]
+                 (map #(symbol (str ns) (str %)) (filter matches? (keys (ns-publics ns)))))
+               (all-ns)))))
 
 (defn class-source "Return the jar file that defines a given class"
   [klass]

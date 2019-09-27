@@ -4,6 +4,7 @@
             [clojure.string :as str])
   )
 
+;;; TODO Most of this could be .cljc
 ;;; Assorted NL tools.
 
 ;;; Source: http://rosettacode.org/wiki/Levenshtein_distance#Clojure

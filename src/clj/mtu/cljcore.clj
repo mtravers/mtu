@@ -167,7 +167,7 @@
   (let [raw (file-lines f)
         fields (str/split (first raw) #"\t")]
     (map (fn [l]
-           (core/clean-map
+           (core/deselect
             (zipmap fields (str/split l #"\t"))
             #(= % "")))
          (rest raw))))
@@ -250,12 +250,19 @@
 (defn schpit 
   "Like core/spit, but will do something sensible for lazy seqs "
   [f content & options]
-  (with-open [w (apply io/writer f options)]
-    (binding [*print-length* nil]
-      (prn content w))))
+  (with-open [w (apply clojure.java.io/writer f options)]
+    (binding [*print-length* nil
+              *out* w]
+      (prn content))))
 
 (defn read-chars
   [reader n]
   (let [a (char-array n)]
     (.read reader a)
     (String. a)))
+
+(defn spittoon
+  "Like spit, but will print lazy lists usefully and completely"
+  [f thing]
+  (binding [*print-length* nil]
+    (spit f (pr-str thing))))

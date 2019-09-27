@@ -1,4 +1,4 @@
-(ns mtu.test.wordstats
+(ns mtu.wordstats-test
   (:use clojure.test)
   (:use mtu.wordstats)
   (:require [clojure.string :as str]))
