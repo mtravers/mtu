@@ -3,6 +3,7 @@
   (:require
    clojure.java.shell
    [clojure.string :as str]
+   [clojure.pprint :as pprint]
    [clojure.java.io :as io]
    [clojure.java.shell :as shell]
    [mtu.core :as core]
@@ -167,7 +168,7 @@
   (let [raw (file-lines f)
         fields (str/split (first raw) #"\t")]
     (map (fn [l]
-           (core/deselect
+           (core/clean-map
             (zipmap fields (str/split l #"\t"))
             #(= % "")))
          (rest raw))))
@@ -254,6 +255,14 @@
     (binding [*print-length* nil
               *out* w]
       (prn content))))
+
+(defn schppit 
+  "Like schpit but will prettyprint "
+  [f content & options]
+  (with-open [w (apply clojure.java.io/writer f options)]
+    (binding [*print-length* nil
+              *out* w]
+      (pprint/pprint content w))))
 
 (defn read-chars
   [reader n]

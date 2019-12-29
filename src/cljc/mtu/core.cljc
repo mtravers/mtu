@@ -47,13 +47,29 @@
 ;;; ⩇⩆⩇ Strings ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
 
-
+;;; Replaced with more powerful coerce-numeric
+#_
 (defn parse-numeric
   [s]
   #?(:cljs (js/parseFloat s)
      :clj (Float. s)))
 
-
+(defn coerce-numeric
+  "Attempt to turn a string into a number (long or double, to match with clj reader likes to do).
+  Return number if succesful, otherwise original string"
+  [str]
+  (when str
+    (if-let [inum (re-matches #"-?\d+" str)]
+      (try
+        #?(:cljs (js/parseInt inum)
+           :clj (Long. inum))
+        (catch #?(:clj Throwable :cljs :default)  _ str))
+      (if-let [fnum (re-matches #"-?\d*\.?\d*" str)]
+        (try
+          #?(:cljs (js/parseFloat fnum)
+             :clj (Double. fnum))
+          (catch #?(:clj Throwable :cljs :default) _ str))
+        str))))
 
 (defn underscore->camelcase
   [s]
@@ -71,12 +87,18 @@
      :cljs
      (throw (ex-info "TODO" {}))))
 
-(defn re-pattern-literal
+(defn re-quote
   [s]
   #?(:clj  
-     (re-pattern (java.util.regex.Pattern/quote s))
+     (java.util.regex.Pattern/quote s)
      :cljs
-     (re-pattern (str/replace s #"([)\/\,\.\,\*\+\?\|\(\)\[\]\{\}\\])" "\\$1"))))
+     (str/replace s #"([)\/\,\.\,\*\+\?\|\(\)\[\]\{\}\\])" "\\$1")))
+
+(defn re-pattern-literal [string]
+  (re-pattern (re-quote string)))
+
+(defn re-pattern-literal-token [string]
+  (re-pattern (str "\\Wstring\\W")))
 
 (defn expand-template-string
   "Template is a string containing {foo} elements, which get replaced by corresponding values from bindings"
@@ -120,7 +142,7 @@
   (remove #(= % elt) seq))
 
 (defn positions "Returns a list of indexes of coll for which pred is  true (if predicate)"
-   [pred coll]
+  [pred coll]
   (keep-indexed (fn [idx x]
                   (when (pred x) idx))
                 coll))
@@ -144,9 +166,10 @@
   [f coll]
   (filter (comp not nullish?) (apply map f coll)))
 
-(defn deselect
-  "Remove values from 'map' based on 'pred' (default is `nullish?`). Formerly clean-map "
-  ([map] (deselect map nullish?))
+;;; Formerly deselect
+(defn clean-map
+  "Remove values from 'map' based on 'pred' (default is `nullish?`). Formerly eselect for some reason"
+  ([map] (clean-map map nullish?))
   ([map pred] (select-keys map (for [[k v] map :when (not (pred v))] k))))
 
 (defn cl-find
@@ -164,6 +187,9 @@
    (keep-indexed (fn [idx x]
                    (when (= x elt) idx))
                  coll)))
+
+(defn remove-elt [coll elt]
+  (remove #(= % elt) coll))
 
 (defn safe-nth
   [col n]
@@ -186,8 +212,8 @@
 (defn uncollide
   "new-key-fn is from elts to elts"
   [seq & {:keys [key-fn new-key-fn existing] :or {key-fn identity
-                                                   existing? #{}
-                                                   }}]
+                                                  existing #{}
+                                                  }}]
   (letfn [(step [xs seen]
             (cond (empty? xs) xs
                   (contains? seen (key-fn (first xs)))
@@ -229,10 +255,10 @@
         true (throw (ex-info (str "Can't merge " m1 " and " m2) {}))))
 
 (defn map-keys [f hashmap]
-  (zipmap (map f (keys hashmap)) (vals hashmap)))
+  (reduce-kv (fn [acc k v] (assoc acc (f k) v)) {} hashmap))
 
 (defn map-values [f hashmap]
-  (zipmap (keys hashmap) (map f (vals hashmap))))
+  (reduce-kv (fn [acc k v] (assoc acc k (f v))) {} hashmap))
 
 ;;; See utilza.core/mapify
 (defn index-by 
@@ -241,6 +267,13 @@
 
 (defn dissoc-if [f hashmap]
   (apply dissoc hashmap (map first (filter f hashmap))))
+
+;;; Weirdly not in clojure.core
+(defn dissoc-in
+  [map [k & k-rest]]
+  (if k-rest
+    (update map k dissoc-in k-rest)
+    (dissoc map k)))
 
 (defn remove-nil-values [hashmap]
   (dissoc-if (fn [[_ v]] (not v)) hashmap))
@@ -270,15 +303,36 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
              ret (f x)))
    {} coll))
 
-(defn map-diff [a b]
+;;; TODO a recursive, walk-like version of this could be useful
+(defn map-diff
+  "Print the differences between two maps"
+  [a b]
   (let [both (set/intersection (set (keys a)) (set (keys b)))
-        a-only (set/difference both (set (keys a)))
-        b-only (set/difference both (set (keys b)))]
+        a-only (set/difference (set (keys a)) both)
+        b-only (set/difference (set (keys b)) both)]
     (prn [:a-only a-only])
-    (prn [:a-only b-only])
+    (prn [:b-only b-only])
     (for [k both]
       (when-not (= (k a) (k b))
         (prn [:slot-diff k (k a) (k b)])))))
+
+(defn subst
+  "Walk `struct`, replacing any keys in map with corresponding value."
+  [struct map]
+  (walk/postwalk #(if (contains? map %) (map %) %) struct))
+
+(defn subst-gen
+  "Like `subst`, but for entries not in map, call `generator` on first occurance to generate a value"
+  [struct map generator]
+  (let [cache (atom map)
+        generate (fn [k]
+                   (let [v (generator k)]
+                     (swap! cache assoc k v)
+                     v))]
+    (walk/postwalk #(if (contains? @cache %)
+                      (@cache %)
+                      (generate %))
+                   struct)))
 
 (defn >*
   "Generalization of > to work on anything with a compare fn"
