@@ -9,16 +9,20 @@
   [x]
   `(let [x# ~x] (println "dbg:" '~x "=" x#) x#))
 
+;;; TODO there is something similar built into Clojure 1.10, tap>, maybe use that.
+
 (defn tapr "Print `thing` and  return it as value"
   [thing]
   (prn thing)
   thing)
 
-;;; TODO – implement equiv of CL mt/plet
+(def captures (atom {}))
 
-(def captured (atom nil))
-(defn capture [value]
-  (reset! captured value))
+(defn capture [tag thing]
+  (swap! captures assoc tag thing)
+  thing)
+
+;;; TODO – implement equiv of CL mt/plet
 
 (defn pp [thing]
   (clojure.pprint/pprint thing))
@@ -45,3 +49,4 @@
 (defn class-source "Return the jar file that defines a given class"
   [klass]
   (.getLocation (.getCodeSource (.getProtectionDomain klass))))
+
