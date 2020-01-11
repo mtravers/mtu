@@ -11,25 +11,29 @@
 ;;; ⩇⩆⩇ Memoization ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
 ;;; See https://github.com/clojure/core.memoize/ for more memoize hacks
-(defmacro defn-memoized "Like `defn`, but produces a memoized function"
+(defmacro defn-memoized
+  "Like `defn`, but produces a memoized function"
   [name args & body]
   ;; This crock is because you can't have multiple varadic arg signatures...sigh
   (if (string? args)
     `(def ~name ~args (memoize (fn ~(first body) ~@(rest body))))
     `(def ~name (memoize (fn ~args ~@body)))))
 
-(defmacro def-lazy "Like `def` but will only compute value on demand."
+(defmacro def-lazy
+  "Like `def` but will delay computing value until it is demanded."
   [var & body]
   `(def ~var (delay ~@body)))
 
 ;;; ⩇⩆⩇ Error handling ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
-(defmacro ignore-errors "Execute `body`; if an exception occurs return `nil`. Note: strongly deprecated for production code."
+(defmacro ignore-errors
+  "Execute `body`; if an exception occurs return `nil`. Note: strongly deprecated for production code."
   [& body]
   `(try (do ~@body)
         (catch #?(:clj Throwable :cljs :default) e# nil)))
 
-(defmacro ignore-report "Execute `body`, if an exception occurs, print a message and continue"
+(defmacro ignore-report
+  "Execute `body`, if an exception occurs, print a message and continue"
   [& body]
   `(try (do ~@body)
         (catch #?(:clj Throwable :cljs :default) e# (warn (str "Ignored error: " (.getMessage e#))))))
@@ -55,7 +59,7 @@
      :clj (Float. s)))
 
 (defn coerce-numeric
-  "Attempt to turn a string into a number (long or double, to match with clj reader likes to do).
+  "Attempt to turn str into a number (long or double).
   Return number if succesful, otherwise original string"
   [str]
   (when str
@@ -74,6 +78,8 @@
 (defn underscore->camelcase
   [s]
   (apply str (map str/capitalize (str/split s #"_"))))
+
+;;; ⩇⩆⩇ Regex and templating ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
 (defn re-find-all
   "Find all matches in a string."
@@ -128,7 +134,31 @@
     %)
    struct))
 
-;;; ⩇⩆⩇ Sequences and Maps ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
+
+;;; ⩇⩆⩇ Variations on standard predicates ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
+
+(defn nullish? 
+  "True if value is something we probably don't care about (nil, false, empty seqs, empty strings)"
+  [v]
+  (or (false? v) (nil? v) (and (seqable? v) (empty? v))))
+
+(defn >*
+  "Generalization of > to work on anything with a compare fn"
+  ([a b]
+   (> (compare a b) 0))
+  ([a b & rest]
+   (and (>* a b)
+        (apply >* b rest))))
+
+(defn <*
+  "Generalization of < to work on anything with a compare fn"
+  ([a b]
+   (< (compare a b) 0))
+  ([a b & rest]
+   (and (<* a b)
+        (apply <* b rest))))
+
+;;; ⩇⩆⩇ Sequences ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
 (defn doall-safe
   "Realize lazy sequences, if arg is such, otherwise a no-op."
@@ -154,10 +184,7 @@
 (defn partition-with [pred coll]
   [(filter pred coll) (remove pred coll)])
 
-(defn nullish? 
-  "True if value is something we probably don't care about (nil, false, empty seqs, empty strings)"
-  [v]
-  (or (false? v) (nil? v) (and (seqable? v) (empty? v))))
+
 
 ;;; Stolen from https://gitlab.com/kenrestivo/utilza
 (defn map-filter
@@ -244,6 +271,88 @@
      (f seq) (cons seq (filter-rest f (rest seq)))
      true (filter-rest f (rest seq)))))
 
+;;; TODO use transients as in group-by
+(defn group-by-multiple
+  "Like group-by, but f produces a seq of values rather than a single one"
+  [f coll]  
+  (reduce
+   (fn [ret x]
+     (reduce (fn [ret y]
+               (assoc ret y (conj (get ret y []) x)))
+             ret (f x)))
+   {} coll))
+
+(defn max-by "Find the maximim element of `seq` based on keyfn"
+  [keyfn seq]
+  (reduce (fn [a b] (if (>* (keyfn a) (keyfn b)) a b))
+          seq))
+
+(defn min-by "Find the minimum element of `seq` based on keyfn"
+  [keyfn seq]
+  (reduce (fn [a b] (if (<* (keyfn a) (keyfn b)) a b))
+          seq))
+
+(defn lunion "Compute the union of `lists`"
+  [& lists]
+  (apply set/union lists))      ;set fn works here, but not for other cases
+
+(defn lintersection "Compute the intersection of `lists`"
+  [& lists]
+  (seq (apply set/intersection (map set lists))))
+
+(defn lset-difference "Compute the set difference of `list1` - `list2'"
+  [list1 list2]
+  (seq (set/difference (set list1) (set list2))))
+
+
+
+;;; partition-lossless
+;;; Previously called take-groups
+;;; and turns out to be subsumed by clojure.core/partition-all
+
+(defn map-chunked "Call f with chunk-sized subsequences of l, concat the results"
+  [f chunk-size l]
+  (mapcat f (partition-all chunk-size l)))
+
+(defn clump-by
+  "Sequence is ordered (by vfn), comparator is a fn of two elts. Returns groups in which comp is true for consecutive elements"
+  [sequence vfn comparator]
+  (if (empty? sequence)
+    sequence
+    (reverse
+     (map reverse
+          (reduce (fn [res b]
+                    (let [a (first (first res))]
+                      (if (comparator (vfn a) (vfn b))
+                        (cons (cons b (first res)) (rest res))
+                        (cons (list b) res))))
+                  (list (list (first sequence)))
+                  (rest sequence))))))
+
+(defmacro doseq* "Like doseq, but goes down lists in parallel rather than nested. Assumes lists are same size."
+  [bindings & body]
+  (let [bindings (partition 2 bindings)
+        vars (map first bindings)
+        forms (map second bindings)
+        lvars (map gensym vars)]
+    `(loop ~(into [] (mapcat (fn [v f] [v f]) lvars forms))
+       (let ~(into [] (mapcat (fn [v lv] [v `(first ~lv)]) vars lvars))
+         ~@body
+         (when-not (empty? (rest ~(first lvars)))
+           (recur ~@(map (fn [lv] `(rest ~lv)) lvars)))
+         ))))
+
+(defmacro for*
+  "Like for but goes down lists in parallel rather than nested. Assumes lists are same size."
+  [bindings & body]
+  (let [bindings (partition 2 bindings)
+        vars (map first bindings)
+        forms (map second bindings)
+        lvars (map gensym vars)]
+    `(map (fn ~(into [] vars) ~@body) ~@forms)))
+
+;;; ⩇⩆⩇ Maps ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
+
 ;;; TODO? could work like regular merge and prefer m2 when unmergeable
 (defn merge-recursive [m1 m2]
   (cond (and (map? m1) (map? m2))
@@ -292,17 +401,6 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
           {}
           m)))
 
-;;; TODO use transients as in group-by
-(defn group-by-multiple
-  "Like group-by, but f produces a seq of values rather than a single one"
-  [f coll]  
-  (reduce
-   (fn [ret x]
-     (reduce (fn [ret y]
-               (assoc ret y (conj (get ret y []) x)))
-             ret (f x)))
-   {} coll))
-
 ;;; TODO a recursive, walk-like version of this could be useful
 (defn map-diff
   "Print the differences between two maps"
@@ -315,6 +413,14 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
     (for [k both]
       (when-not (= (k a) (k b))
         (prn [:slot-diff k (k a) (k b)])))))
+
+(defn sort-map-by-values [m]
+  (into (sorted-map-by (fn [k1 k2] (compare [(get m k2) k2] [(get m k1) k1]))) m))
+
+(defn freq-map [seq]
+  (sort-map-by-values (frequencies seq)))
+
+;;; ⩇⩆⩇ Walker ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
 (defn subst
   "Walk `struct`, replacing any keys in map with corresponding value."
@@ -334,43 +440,31 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
                       (generate %))
                    struct)))
 
-(defn >*
-  "Generalization of > to work on anything with a compare fn"
-  ([a b]
-   (> (compare a b) 0))
-  ([a b & rest]
-   (and (>* a b)
-        (apply >* b rest))))
+;;; TODO avoid atom with a loop?
+(defn walk-collect
+  "Walk f over thing and return a list of the non-nil returned values"
+  [f thing]
+  (let [collector (atom [])]
+    (clojure.walk/postwalk
+     #(do
+        (when (f %)
+          (swap! collector conj %))
+        %)
+     thing)
+    @collector))
 
-(defn <*
-  "Generalization of < to work on anything with a compare fn"
-  ([a b]
-   (< (compare a b) 0))
-  ([a b & rest]
-   (and (<* a b)
-        (apply <* b rest))))
+;;; ⩇⩆⩇ Sets ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
-(defn max-by "Find the maximim element of `seq` based on keyfn"
-  [keyfn seq]
-  (reduce (fn [a b] (if (>* (keyfn a) (keyfn b)) a b))
-          seq))
+(defn powerset
+  "Compute powerset of a set"
+  [s]
+  (if (empty? s) #{#{}}
+      (let [elt (set (list (first s)))
+            tail (powerset (rest s))]
+        (set/union (into #{} (map #(set/union elt %) tail))
+                   tail))))
 
-(defn min-by "Find the minimum element of `seq` based on keyfn"
-  [keyfn seq]
-  (reduce (fn [a b] (if (<* (keyfn a) (keyfn b)) a b))
-          seq))
-
-(defn lunion "Compute the union of `lists`"
-  [& lists]
-  (apply set/union lists))      ;set fn works here, but not for other cases
-
-(defn lintersection "Compute the intersection of `lists`"
-  [& lists]
-  (seq (apply set/intersection (map set lists))))
-
-(defn lset-difference "Compute the set difference of `list1` - `list2'"
-  [list1 list2]
-  (seq (set/difference (set list1) (set list2))))
+;;; ⩇⩆⩇ Functional ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
 (defn transitive-closure 
   "f is a fn of one arg that returns a list. Returns a new fn that computes the transitive closure."
@@ -386,65 +480,22 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
           (recur (set/union done (set (list expanded)))
                  (concat new (rest fringe))))))))
 
-(defn powerset
-  "Compute powerset of a set"
-  [s]
-  (if (empty? s) #{#{}}
-      (let [elt (set (list (first s)))
-            tail (powerset (rest s))]
-        (set/union (into #{} (map #(set/union elt %) tail))
-                   tail))))
 
-;;; partition-lossless
-;;; Previously called take-groups
-;;; and turns out to be subsumed by clojure.core/partition-all
+(defn *ify
+  "f is a 1-arg fn on a scalar, returns a fn that will apply f either a scalar or a sequence"
+  [f]
+  (fn [arg]
+    (if (seq? arg)
+      (map f arg)
+      (f arg))))
 
-(defn map-chunked "Call f with chunk-sized subsequences of l, concat the results"
-  [f chunk-size l]
-  (mapcat f (partition-all chunk-size l)))
-
-(defmacro doseq* "Like doseq, but goes down lists in parallel rather than nested. Assumes lists are same size."
-  [bindings & body]
-  (let [bindings (partition 2 bindings)
-        vars (map first bindings)
-        forms (map second bindings)
-        lvars (map gensym vars)]
-    `(loop ~(into [] (mapcat (fn [v f] [v f]) lvars forms))
-       (let ~(into [] (mapcat (fn [v lv] [v `(first ~lv)]) vars lvars))
-         ~@body
-         (when-not (empty? (rest ~(first lvars)))
-           (recur ~@(map (fn [lv] `(rest ~lv)) lvars)))
-         ))))
-
-(defmacro for*
-  "Like for but goes down lists in parallel rather than nested. Assumes lists are same size."
-  [bindings & body]
-  (let [bindings (partition 2 bindings)
-        vars (map first bindings)
-        forms (map second bindings)
-        lvars (map gensym vars)]
-    `(map (fn ~(into [] vars) ~@body) ~@forms)))
-
-(defn sort-map-by-values [m]
-  (into (sorted-map-by (fn [k1 k2] (compare [(get m k2) k2] [(get m k1) k1]))) m))
-
-(defn freq-map [seq]
-  (sort-map-by-values (frequencies seq)))
-
-(defn clump-by
-  "Sequence is ordered (by vfn), comparator is a fn of two elts. Returns groups in which comp is true for consecutive elements"
-  [sequence vfn comparator]
-  (if (empty? sequence)
-    sequence
-    (reverse
-     (map reverse
-          (reduce (fn [res b]
-                    (let [a (first (first res))]
-                      (if (comparator (vfn a) (vfn b))
-                        (cons (cons b (first res)) (rest res))
-                        (cons (list b) res))))
-                  (list (list (first sequence)))
-                  (rest sequence))))))
+(defn *ify!
+  "f is a 1-arg fn on a scalar, returns a fn that will apply f either a scalar or a sequence (non-lazily)"
+  [f]
+  (fn [arg]
+    (if (seq? arg)
+      (doall (map f arg))
+      (f arg))))
 
 ;;; ⩇⩆⩇ Randomness, basic numerics ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
@@ -469,4 +520,5 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
   (swap! key-counter update root #(inc (or % 0)))
   (keyword (namespace root)
            (str (name root) (get @key-counter root))))
+
 

@@ -249,7 +249,7 @@
   (java.util.Date.))
 
 (defn schpit 
-  "Like core/spit, but will do something sensible for lazy seqs "
+  "Like core/spit, but will do something sensible for lazy seqs."
   [f content & options]
   (with-open [w (apply clojure.java.io/writer f options)]
     (binding [*print-length* nil
@@ -257,7 +257,7 @@
       (prn content))))
 
 (defn schppit 
-  "Like schpit but will prettyprint "
+  "Like schpit but will prettyprint."
   [f content & options]
   (with-open [w (apply clojure.java.io/writer f options)]
     (binding [*print-length* nil
@@ -270,8 +270,4 @@
     (.read reader a)
     (String. a)))
 
-(defn spittoon
-  "Like spit, but will print lazy lists usefully and completely"
-  [f thing]
-  (binding [*print-length* nil]
-    (spit f (pr-str thing))))
+
