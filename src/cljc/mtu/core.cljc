@@ -195,9 +195,16 @@
 
 ;;; Formerly deselect
 (defn clean-map
-  "Remove values from 'map' based on 'pred' (default is `nullish?`). Formerly eselect for some reason"
+  "Remove values from 'map' based on 'pred' (default is `nullish?`). "
   ([map] (clean-map map nullish?))
   ([map pred] (select-keys map (for [[k v] map :when (not (pred v))] k))))
+
+(defn clean-walk
+  "Remove values from all maps in 'struct' based on 'pred' (default is `nullish?`). "
+  ([struct] (clean-walk struct nullish?))
+  ([struct pred] 
+   (walk/postwalk #(if (map? %) (clean-map % pred) %) struct)))
+
 
 (defn cl-find
   [val sequence & {xkey :key, xtest :test, :or {xkey identity, xtest =}}]
@@ -401,18 +408,19 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
           {}
           m)))
 
-;;; TODO a recursive, walk-like version of this could be useful
 (defn map-diff
-  "Print the differences between two maps"
+  "Returns a recursive diff of two maps, which you will want to prettyprint."
   [a b]
   (let [both (set/intersection (set (keys a)) (set (keys b)))
         a-only (set/difference (set (keys a)) both)
-        b-only (set/difference (set (keys b)) both)]
-    (prn [:a-only a-only])
-    (prn [:b-only b-only])
-    (for [k both]
-      (when-not (= (k a) (k b))
-        (prn [:slot-diff k (k a) (k b)])))))
+        b-only (set/difference (set (keys b)) both)
+        slot-diffs
+        (for [k both
+              :when (not (= (k a) (k b)))]
+          (if (and (map? (k a)) (map? (k b)))
+            [:slot-diff k (map-diff (k a) (k b))]
+            [:slot-diff k (k a) (k b)]))]
+    [:a-only a-only :b-only b-only :slot-diffs slot-diffs]))
 
 (defn sort-map-by-values [m]
   (into (sorted-map-by (fn [k1 k2] (compare [(get m k2) k2] [(get m k1) k1]))) m))
@@ -447,8 +455,8 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
   (let [collector (atom [])]
     (clojure.walk/postwalk
      #(do
-        (when (f %)
-          (swap! collector conj %))
+        (when-let [v (f %)]
+          (swap! collector conj v))
         %)
      thing)
     @collector))
@@ -480,7 +488,7 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
           (recur (set/union done (set (list expanded)))
                  (concat new (rest fringe))))))))
 
-
+;;; Obsoleted by vectorize, more or less
 (defn *ify
   "f is a 1-arg fn on a scalar, returns a fn that will apply f either a scalar or a sequence"
   [f]
@@ -489,13 +497,23 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
       (map f arg)
       (f arg))))
 
-(defn *ify!
-  "f is a 1-arg fn on a scalar, returns a fn that will apply f either a scalar or a sequence (non-lazily)"
+;;; Vectorized fns (after SciCL)
+
+;;; Given a fn f with scalar args, (vectorized f) is a fn that takes either scalars or vectors for any argument,
+;;; doing the appropriate vectorization.
+;;; All vector args should be the same length.
+(defn vectorize
   [f]
-  (fn [arg]
-    (if (seq? arg)
-      (doall (map f arg))
-      (f arg))))
+  (fn [& args]
+    (if-let [l (some #(and (sequential? %) (count %)) args)]
+      (let [vargs (map #(if (sequential? %) (vec %) %) args)] ;vectorize args
+        (mapv (fn [i]
+               (apply f (map (fn [arg] (if (vector? arg) (get arg i) arg)) vargs)))
+             (range l)))
+      (apply f args))))
+
+;;; Eg this yields [20 400 6000]
+#_ ((vectorize *) [1 2 3] 2 [10 100 1000])
 
 ;;; ⩇⩆⩇ Randomness, basic numerics ⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇⩆⩇
 
