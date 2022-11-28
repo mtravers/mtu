@@ -1,3 +1,7 @@
+# Obsolete!
+
+Most of this has been folded into [multitool](https://github.com/CANDELbio/multitool) and you should use that.
+
 # mtu
 
 Mike Travers՚ Clojure utility library.
