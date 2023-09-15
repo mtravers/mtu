@@ -180,18 +180,16 @@
 (defn positions= [elt coll]
   (positions #(= % elt) coll))
 
-;;; isn't this in clj.core somewhere
+;;; TODO Isn't this already in clj.core somewhere?
 (defn partition-with [pred coll]
-  [(filter pred coll) (remove pred coll)])
-
-
+  ((juxt filter remove) pred seq))
 
 ;;; Stolen from https://gitlab.com/kenrestivo/utilza
 (defn map-filter
   "Applies f to coll. Returns a lazy sequence of the items in coll for which
-   all the items are truthy. f must be free of side-effects."
+   all the results that are truthy. f must be free of side-effects."
   [f coll]
-  (filter (comp not nullish?) (apply map f coll)))
+  (remove nullish? (map f coll)))
 
 ;;; Formerly deselect
 (defn clean-map
@@ -495,6 +493,14 @@ Ex: `(map-invert-multiple  {:a 1, :b 2, :c [3 4], :d 3}) ==>⇒ {2 #{:b}, 4 #{:c
   (fn [arg]
     (if (seq? arg)
       (map f arg)
+      (f arg))))
+
+(defn *ify!
+  "f is a 1-arg fn on a scalar, returns a fn that will apply f either a scalar or a sequence (non-lazily)"
+  [f]
+  (fn [arg]
+    (if (seq? arg)
+      (doall (map f arg))
       (f arg))))
 
 ;;; Vectorized fns (after SciCL)
